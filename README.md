@@ -1,5 +1,9 @@
 # Entity-Linking
 
+Entity linking consists of several steps:
+- [Named Entity Recognition (NER)](#named-entity-recognition-ner)
+- [Candidate generation](#candidate-generation)
+
 
 ## Named Entity Recognition (NER)
 It is the process of identifying the key information in the text.
@@ -48,12 +52,27 @@ Nikola Tesla (Serbian Cyrillic: Никола Тесла) was a Serbian-American 
 
 The entities would be:
 ```text
-[('Serbian', 14, 21, 'NORP'),
-('Никола Тесла', 32, 44, 'FAC'),
-('Serbian', 52, 59, 'NORP'),
-('AC', 216, 218, 'ORG')]
+[('Nikola Tesla', 0, 12, 'PERSON'),
+('Serbian', 14, 21, 'NORP'),
+('Тесла', 39, 44, 'PERSON'),
+('Serbian', 52, 59, 'NORP')]
+(Nikola Tesla, Serbian, Тесла, Serbian)
 ```
 
 The labelled text looks like this:
 
 ![NER_labelled_text.png](readme_images/NER_labelled_text.png)
+
+
+## Candidate generation
+
+### DBpedia ontology
+
+The documentation of DBpedia ontology is available online [here](https://www.dbpedia.org/resources/ontology/).
+Visualised ontology is available online [here](https://service.tib.eu/webvowl/#iri=https://akswnc7.informatik.uni-leipzig.de/dstreitmatter/archivo/dbpedia.org/ontology--DEV/2023.04.20-002000/ontology--DEV_type=parsed.owl).
+
+[//]: # (The ontology can be loaded from a file using [owlready2]&#40;https://owlready2.readthedocs.io/en/latest/onto.html&#41;.)
+
+[SPARQL](https://www.ontotext.com/knowledgehub/fundamentals/what-is-sparql/) can be used to query the ontology.
+[SPARQLWrapper](https://sparqlwrapper.readthedocs.io/en/latest/main.html) allows connecting to a specific URL and query the data. 
+
