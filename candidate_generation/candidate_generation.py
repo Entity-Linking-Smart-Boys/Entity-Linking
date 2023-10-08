@@ -23,10 +23,16 @@ def query_dbpedia(entity):
 
     # WHERE {  ?GPE rdfs:label      "Gdansk"@en }
 
-    sparql.setQuery('''
-        SELECT ?object
-        WHERE { dbr:''' + entity + ''' rdfs:label ?object .}
-    ''')
+    sparql.setQuery(f'''
+    SELECT ?name ?comment ?image
+    WHERE {{ dbr:{entity} rdfs:label ?name.
+             dbr:{entity} rdfs:comment ?comment.
+             dbr:{entity} dbo:thumbnail ?image.
+
+        FILTER (lang(?name) = 'en')
+        FILTER (lang(?comment) = 'en')
+    }}''')
+
     sparql.setReturnFormat(JSON)
 
     sparql.verify = False
@@ -108,5 +114,7 @@ def iterate_entities(entities):
 
 if __name__ == "__main__":
     ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-    
-    
+
+    # TODO: map spacy entity types to dbpedia entity types
+    # TODO: adjust the sparql query to use the entity type
+

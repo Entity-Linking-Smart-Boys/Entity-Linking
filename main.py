@@ -11,7 +11,8 @@ if __name__ == "__main__":
         string_entity = str(entity).replace(" ", "_")
         query_result = query_dbpedia(string_entity)
         print(string_entity)
-        print_query_result(query_result)
-        print("####")
+        print(query_result)
 
 
+        # print_query_result(query_result)
+        print("#####")

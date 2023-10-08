@@ -76,3 +76,4 @@ Visualised ontology is available online [here](https://service.tib.eu/webvowl/#i
 [SPARQL](https://www.ontotext.com/knowledgehub/fundamentals/what-is-sparql/) can be used to query the ontology.
 [SPARQLWrapper](https://sparqlwrapper.readthedocs.io/en/latest/main.html) allows connecting to a specific URL and query the data. 
 
+
