@@ -1,18 +1,20 @@
 from named_entity_recognition.NER_spacy import *
 from candidate_generation.candidate_generation import *
+import json
+
 
 if __name__ == "__main__":
     text = "Nikola Tesla (Serbian Cyrillic: Никола Тесла) was a Serbian-American inventor, electrical engineer, mechanical engineer, and futurist best known for his contributions to the design of the modern alternating current (AC) electricity supply system."
 
     entities = named_entity_recognition_using_spacy(text)
-    print(entities)
+    # print(entities)
+    entities = map_to_dbpedia_ontology(entities)
 
     for entity in entities:
-        string_entity = str(entity).replace(" ", "_")
-        query_result = query_dbpedia(string_entity)
-        print(string_entity)
-        print(query_result)
 
+        query_result = query_dbpedia(entity)
+        print(entity[0])
+        # print(json.dumps(query_result, indent=2))  # print formatted json
 
-        # print_query_result(query_result)
+        print_found_results(query_result)
         print("#####")

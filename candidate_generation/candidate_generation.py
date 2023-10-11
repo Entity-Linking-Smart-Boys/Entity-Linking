@@ -11,27 +11,30 @@ def query_dbpedia(entity):
     :param entity: entity to query about
     :return: query result
     """
+
+    # variables used to create a query
+    surface_form = entity[0]
+    ontology_type = entity[1]
+
     ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
 
     sparql = SPARQLWrapper('https://dbpedia.org/sparql')  # initialize SPARQL Wrapper
 
-    # # Example: look for an object "Barack_Obama" and get the property "label"
-    # sparql.setQuery('''
-    #     SELECT ?object
-    #     WHERE { dbr:Barack_Obama dbo:label ?object .}
-    # ''')
-
-    # WHERE {  ?GPE rdfs:label      "Gdansk"@en }
-
+    # create the query
     sparql.setQuery(f'''
-    SELECT ?name ?comment ?image
-    WHERE {{ dbr:{entity} rdfs:label ?name.
-             dbr:{entity} rdfs:comment ?comment.
-             dbr:{entity} dbo:thumbnail ?image.
-
-        FILTER (lang(?name) = 'en')
-        FILTER (lang(?comment) = 'en')
-    }}''')
+        PREFIX dbo: <http://dbpedia.org/ontology/>
+        PREFIX dct: <http://purl.org/dc/terms/>
+        
+        SELECT ?entity ?abstract
+        WHERE {{  ?entity rdf:type dbo:{ontology_type} ;
+                    rdfs:label ?name ;
+                    dbo:abstract ?abstract .
+         
+          
+          FILTER (langMatches(lang(?name), "en") && CONTAINS(?name, "{surface_form}") && langMatches(lang(?abstract), "en"))
+        }}
+        LIMIT 5
+    ''')
 
     sparql.setReturnFormat(JSON)
 
@@ -41,80 +44,10 @@ def query_dbpedia(entity):
     return query_result
 
 
-def print_query_result(query_result):
-    for result in query_result['results']['bindings']:
-        print(result['object'])
+def print_found_results(json_data):
+    for result in json_data["results"]["bindings"]:
+        uri = result["entity"]["value"]
+        abstract = result["abstract"]["value"]
+        resource_name = uri.split('/')[-1]
 
-        lang, value = result['object']['xml:lang'], result['object']['value']
-        # print(f'Lang: {lang}\tValue: {value}')
-        if lang == 'en':
-            print(value)
-
-
-def create_graph_from_query():
-    """
-    Get the parent and child nodes.
-    This allows to create a graph of objects (CONSTRUCT).
-    Example: Parent - Artificial Intelligence, Child - Markov Models, etc.
-    """
-    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-
-    sparql = SPARQLWrapper("http://dbpedia.org/sparql")
-    sparql.setQuery('''
-    CONSTRUCT { dbc:Machine_learning skos:broader ?parent .
-                dbc:Machine_learning skos:narrower ?child .} 
-    WHERE {
-        { dbc:Machine_learning skos:broader ?parent . }
-    UNION
-        { ?child skos:broader dbc:Machine_learning . }
-    }''')
-
-    sparql.setReturnFormat(N3)  # N triples
-    query_result = sparql.query().convert()
-
-    g = Graph()
-    g.parse(data=query_result, format='n3')
-    print(g.serialize(format='ttl'))
-
-
-def iterate_entities(entities):
-    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-
-    sparql = SPARQLWrapper('https://dbpedia.org/sparql')
-
-    for entity in entities:
-        print('###########################################')
-        sparql.setQuery(f'''
-        SELECT ?name ?comment ?image
-        WHERE {{ dbr:{entity} rdfs:label ?name.
-                 dbr:{entity} rdfs:comment ?comment.
-                 dbr:{entity} dbo:thumbnail ?image.
-
-            FILTER (lang(?name) = 'en')
-            FILTER (lang(?comment) = 'en')
-        }}''')
-
-        sparql.setReturnFormat(JSON)
-        query_result = sparql.query().convert()
-
-        result = query_result['results']['bindings'][0]
-        name, comment, image_url = result['name']['value'], result['comment']['value'], result['image']['value']
-
-        print(name)
-
-        # Attempt to open the image with error handling
-        try:
-            print(f'image_url: {image_url}')
-            display(Image(url=image_url, width=100, unconfined=True))
-        except Exception as e:
-            print(f'Error: {e}')
-
-        print(f'{comment}...')
-
-
-if __name__ == "__main__":
-    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-
-    # TODO: map spacy entity types to dbpedia entity types
-    # TODO: adjust the sparql query to use the entity type
-
+        print(resource_name, uri, abstract[:40])
