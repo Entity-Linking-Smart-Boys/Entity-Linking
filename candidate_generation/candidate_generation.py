@@ -1,7 +1,19 @@
 from rdflib import Graph
-from SPARQLWrapper import SPARQLWrapper, JSON, N3
+from SPARQLWrapper import SPARQLWrapper, JSON
 import ssl
-from IPython.display import display, Image
+import rdflib
+from Entity import Candidate
+import json
+
+
+def merge_jsons(main_results, new_results):
+    if main_results != "":
+        # Merge the two dictionaries
+        main_results.update(new_results)
+
+        return main_results
+    else:
+        return new_results  # return only this, because main results are empty
 
 
 def query_dbpedia(entity):
@@ -11,110 +23,109 @@ def query_dbpedia(entity):
     :param entity: entity to query about
     :return: query result
     """
+
     ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
 
     sparql = SPARQLWrapper('https://dbpedia.org/sparql')  # initialize SPARQL Wrapper
 
-    # # Example: look for an object "Barack_Obama" and get the property "label"
-    # sparql.setQuery('''
-    #     SELECT ?object
-    #     WHERE { dbr:Barack_Obama dbo:label ?object .}
-    # ''')
+    dbpedia_ont_types = entity.ont_type_dbpedia.split(',')
 
-    # WHERE {  ?GPE rdfs:label      "Gdansk"@en }
+    results = ""
 
-    sparql.setQuery(f'''
-    SELECT ?name ?comment ?image
-    WHERE {{ dbr:{entity} rdfs:label ?name.
-             dbr:{entity} rdfs:comment ?comment.
-             dbr:{entity} dbo:thumbnail ?image.
+    for ontology_type in dbpedia_ont_types:
+        query = '''
+            PREFIX dbo: <http://dbpedia.org/ontology/>
+           
+            SELECT ?entity ?typeValue ?name
+            WHERE {
+              {
+                ?entity a/rdfs:subClassOf* ''' + ontology_type + ''';
+                        rdfs:label ?name ;
+                        a ?type .
+                BIND ("''' + ontology_type + '''" as ?typeValue)
+                FILTER (langMatches(lang(?name), "en") && CONTAINS(?name, "''' + entity.surface_form + '''") && STRSTARTS(STR(?type), "http://dbpedia.org/ontology"))
+              }
+            }
+            group by ?entity  # this lowers the number of results
+        '''
 
-        FILTER (lang(?name) = 'en')
-        FILTER (lang(?comment) = 'en')
-    }}''')
-
-    sparql.setReturnFormat(JSON)
-
-    sparql.verify = False
-    query_result = sparql.query().convert()
-
-    return query_result
-
-
-def print_query_result(query_result):
-    for result in query_result['results']['bindings']:
-        print(result['object'])
-
-        lang, value = result['object']['xml:lang'], result['object']['value']
-        # print(f'Lang: {lang}\tValue: {value}')
-        if lang == 'en':
-            print(value)
-
-
-def create_graph_from_query():
-    """
-    Get the parent and child nodes.
-    This allows to create a graph of objects (CONSTRUCT).
-    Example: Parent - Artificial Intelligence, Child - Markov Models, etc.
-    """
-    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-
-    sparql = SPARQLWrapper("http://dbpedia.org/sparql")
-    sparql.setQuery('''
-    CONSTRUCT { dbc:Machine_learning skos:broader ?parent .
-                dbc:Machine_learning skos:narrower ?child .} 
-    WHERE {
-        { dbc:Machine_learning skos:broader ?parent . }
-    UNION
-        { ?child skos:broader dbc:Machine_learning . }
-    }''')
-
-    sparql.setReturnFormat(N3)  # N triples
-    query_result = sparql.query().convert()
-
-    g = Graph()
-    g.parse(data=query_result, format='n3')
-    print(g.serialize(format='ttl'))
-
-
-def iterate_entities(entities):
-    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-
-    sparql = SPARQLWrapper('https://dbpedia.org/sparql')
-
-    for entity in entities:
-        print('###########################################')
-        sparql.setQuery(f'''
-        SELECT ?name ?comment ?image
-        WHERE {{ dbr:{entity} rdfs:label ?name.
-                 dbr:{entity} rdfs:comment ?comment.
-                 dbr:{entity} dbo:thumbnail ?image.
-
-            FILTER (lang(?name) = 'en')
-            FILTER (lang(?comment) = 'en')
-        }}''')
+        sparql.setQuery(query)
 
         sparql.setReturnFormat(JSON)
+
+        sparql.verify = False
         query_result = sparql.query().convert()
+        results = merge_jsons(results, query_result)
+    return results
 
-        result = query_result['results']['bindings'][0]
-        name, comment, image_url = result['name']['value'], result['comment']['value'], result['image']['value']
 
-        print(name)
+def save_found_candidates(json_data, entity):
+    entity.candidates = []
+    for result in json_data["results"]["bindings"]:
+        candidate_uri = result["entity"]["value"]
+        candidate_label = result["name"]["value"]
+        candidate_type = result["typeValue"]["value"]
+        candidate = Candidate(candidate_uri, candidate_label, candidate_type)
+        entity.candidates.append(candidate)
+    return entity
 
-        # Attempt to open the image with error handling
-        try:
-            print(f'image_url: {image_url}')
-            display(Image(url=image_url, width=100, unconfined=True))
-        except Exception as e:
-            print(f'Error: {e}')
 
-        print(f'{comment}...')
+def sort_cand_by_ont_depth(entity):
+    # Load the DBpedia ontology RDF file
+    ontology_file = "candidate_generation/dbpedia_ontology.rdf"
+    g = rdflib.Graph()
+    g.parse(ontology_file, format="xml")
+
+    # calculate the ont depth
+    for cand in entity.candidates:
+        # Define the class you're interested in
+        target_class = rdflib.URIRef(str(cand.ont_type))
+
+        # Calculate the depth of the target class
+        visited = set()
+        cand.ont_type_depth = calculate_depth(target_class, visited, g)
+
+    # Sort the candidates for each entity by ont_type_depth
+    entity.candidates = sorted(entity.candidates, key=lambda x: (x.name, x.ont_type_depth))
+
+    return entity
+
+
+def calculate_depth(current_class, visited, g):
+    if current_class == rdflib.OWL.Thing:
+        return 0  # Top-level class reached
+    else:
+        superclasses = list(g.transitive_objects(current_class, rdflib.RDFS.subClassOf))
+        depths = []
+        for cls in superclasses:
+            if cls not in visited:
+                visited.add(cls)
+                depth = calculate_depth(cls, visited, g)
+                visited.remove(cls)
+                depths.append(depth)
+
+        if not depths:
+            return 1  # No superclasses, so depth is 1
+        else:
+            return 1 + max(depths)
+
+
+def extract_deepest_candidates(entity):
+    # Create a dictionary to keep track of the highest ont_type_depth for each name
+    highest_ont_type_depth = {}
+    new_candidates = []
+    for candidate in entity.candidates:
+        if candidate.name not in highest_ont_type_depth:
+            highest_ont_type_depth[candidate.name] = candidate.ont_type_depth
+        elif candidate.ont_type_depth > highest_ont_type_depth[candidate.name]:
+            highest_ont_type_depth[candidate.name] = candidate.ont_type_depth
+
+    # Replace the current list of candidates with only the deepest candidates
+    new_candidates = [candidate for candidate in entity.candidates if
+                      candidate.ont_type_depth == highest_ont_type_depth[candidate.name]]
+    entity.candidates = new_candidates
+    return entity
 
 
 if __name__ == "__main__":
-    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
-
-    # TODO: map spacy entity types to dbpedia entity types
-    # TODO: adjust the sparql query to use the entity type
-
+    pass

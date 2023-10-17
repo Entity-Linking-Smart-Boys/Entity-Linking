@@ -3,6 +3,7 @@
 Entity linking consists of several steps:
 - [Named Entity Recognition (NER)](#named-entity-recognition-ner)
 - [Candidate generation](#candidate-generation)
+- [Candidate disambiguation](#candidate-disambiguation)
 
 
 ## Named Entity Recognition (NER)
@@ -12,9 +13,40 @@ An entity is the thing that is consistently talked about or referred to in the p
 
 ### Three main steps
 NER consists of three main steps: 
-1. Tokenization, which involves breaking the text into individual words or phrases.
-2. Part-of-speech tagging, which assigns a grammatical tag to each word.
-3. Entity recognition, which identifies and classifies the named entities in the text.
+1. **Tokenization**, which involves breaking the text into individual words or phrases.
+2. **Part-of-speech tagging**, which assigns a grammatical tag to each word.
+3. **Entity recognition**, which identifies and classifies the named entities in the text.
+
+Suppose we have the following sentence: "Apple Inc. was founded by Steve Jobs in Cupertino, California."
+The process of NER would look like this:
+1. **Tokenization**:
+    "Apple"
+    "Inc."
+    "was"
+    "founded"
+    "by"
+    "Steve"
+    "Jobs"
+    "in"
+    "Cupertino"
+    "California"
+2. **Part-of-speech tagging**:
+    "Apple" - Noun (specifically, a proper noun)
+    "Inc." - Noun
+    "was" - Verb
+    "founded" - Verb
+    "by" - Preposition
+    "Steve" - Noun (a person's name)
+    "Jobs" - Noun (a person's name)
+    "in" - Preposition
+    "Cupertino" - Noun (a location name)
+    "California" - Noun (a location name)
+3. **Entity recognition**:
+    "Apple Inc." - This is an organization name.
+    "Steve Jobs" - This is a person's name.
+    "Cupertino" - This is a location name.
+    "California" - This is another location name.
+
 
 ### Model
 In this project Deep Learning Based NER is used.
