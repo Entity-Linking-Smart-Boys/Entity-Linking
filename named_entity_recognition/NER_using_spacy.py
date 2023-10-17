@@ -4,6 +4,12 @@ from named_entity_recognition.entity import Entity
 
 
 def named_entity_recognition_using_spacy(text):
+    """
+    Perform Named Entity Recognition (NER) using spaCy (Docs: https://spacy.io/api/entityrecognizer).
+
+    :param text: text to annotate
+    :return: found entities with specific surface form and label.
+    """
     nlp = spacy.load('en_core_web_lg')
 
     doc = nlp(text)
@@ -12,18 +18,25 @@ def named_entity_recognition_using_spacy(text):
 
     displacy.render(doc, style='ent')
 
-    entity_to_return = []
+    found_entities = []
     for entity in list(entities):
         new_entity = Entity()
         new_entity.surface_form = entity[0]
         new_entity.ont_type_spacy = entity[1]
 
-        entity_to_return.append(new_entity)
+        found_entities.append(new_entity)
 
-    return entity_to_return
+    return found_entities
 
 
 def map_entity_type_to_dbpedia_ontology(entity):
+    """
+    Map the spaCy type of entity into the types of DBpedia ontology.
+    This method allows to specify the type of entity in terms of DBpedia ontology and create effective SPARQL queries.
+
+    :param entity: entity to map
+    :return:
+    """
     spacy_to_dbpedia_ontology_mapping = {
         "PERSON": "dbo:Species, dbo:Agent",  # People, including fictional.
         "NORP": "dbo:Agent, dbo:Species",  # Nationalities or religious or political groups.

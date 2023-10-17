@@ -1,24 +1,16 @@
 from SPARQLWrapper import SPARQLWrapper, JSON
 import ssl
-import rdflib
 from .candidate import Candidate
 
 
-# def merge_results(new_results, main_results):
-#     # Parse JSON data into Python dictionaries
-#     data1 = json.loads(new_results)
-#     data2 = json.loads(main_results)
-#
-#     # Merge the dictionaries
-#     data1["results"]["bindings"].extend(data2["results"]["bindings"])
-#
-#     # Convert the merged dictionary back to JSON
-#     merged_json = json.dumps(data1, indent=2)
-#     return merged_json
-
-
-
 def merge_results(new_results, main_results):
+    """
+    Merge two dictionaries containing results from SPARQL query.
+
+    :param new_results: results with entities of new ontology type
+    :param main_results: results with entities of old ontology types
+    :return: merged results as dictionary
+    """
     # Merge the 'bindings' lists from both dictionaries
     main_results['results']['bindings'].extend(new_results['results']['bindings'])
     return main_results
@@ -26,9 +18,9 @@ def merge_results(new_results, main_results):
 
 def query_dbpedia(entity):
     """
-    Create the Query and send it via SPARQLWrapper.
+    Create SPARQL query and send it via SPARQLWrapper.
 
-    :param entity: entity to query about
+    :param entity: entity containing details used during creation of query
     :return: query result
     """
 
@@ -74,75 +66,25 @@ def query_dbpedia(entity):
         sparql.verify = False
         query_result = sparql.query().convert()
         results = merge_results(query_result, results)
-        # print(len(results['results']['bindings']))
     return results
 
 
-def save_found_candidates(json_data, entity):
+def save_found_candidates(query_results, entity):
+    """
+    Extract data from SPARQL query results and save it into candidate instances.
+    The list of candidates is saved into the entity.
+
+    :param query_results: results of SPARQL query
+    :param entity: entity in which the candidates are saved into
+    :return: updated entity with list of candidates
+    """
     entity.candidates = []
-    for result in json_data["results"]["bindings"]:
+    for result in query_results["results"]["bindings"]:
         candidate_uri = result["entity"]["value"]
         candidate_label = result["name"]["value"]
         candidate_type = result["typeValue"]["value"]
         candidate = Candidate(candidate_uri, candidate_label, candidate_type)
         entity.candidates.append(candidate)
-    return entity
-
-
-def sort_cand_by_ont_depth(entity):
-    # Load the DBpedia ontology RDF file
-    ontology_file = "candidate_generation/dbpedia_ontology.rdf"
-    g = rdflib.Graph()
-    g.parse(ontology_file, format="xml")
-
-    # calculate the ont depth
-    for cand in entity.candidates:
-        # Define the class you're interested in
-        target_class = rdflib.URIRef(str(cand.ont_type))
-
-        # Calculate the depth of the target class
-        visited = set()
-        cand.ont_type_depth = calculate_depth(target_class, visited, g)
-
-    # Sort the candidates for each entity by ont_type_depth
-    entity.candidates = sorted(entity.candidates, key=lambda x: (x.name, x.ont_type_depth))
-
-    return entity
-
-
-def calculate_depth(current_class, visited, g):
-    if current_class == rdflib.OWL.Thing:
-        return 0  # Top-level class reached
-    else:
-        superclasses = list(g.transitive_objects(current_class, rdflib.RDFS.subClassOf))
-        depths = []
-        for cls in superclasses:
-            if cls not in visited:
-                visited.add(cls)
-                depth = calculate_depth(cls, visited, g)
-                visited.remove(cls)
-                depths.append(depth)
-
-        if not depths:
-            return 1  # No superclasses, so depth is 1
-        else:
-            return 1 + max(depths)
-
-
-def extract_deepest_candidates(entity):
-    # Create a dictionary to keep track of the highest ont_type_depth for each name
-    highest_ont_type_depth = {}
-    new_candidates = []
-    for candidate in entity.candidates:
-        if candidate.name not in highest_ont_type_depth:
-            highest_ont_type_depth[candidate.name] = candidate.ont_type_depth
-        elif candidate.ont_type_depth > highest_ont_type_depth[candidate.name]:
-            highest_ont_type_depth[candidate.name] = candidate.ont_type_depth
-
-    # Replace the current list of candidates with only the deepest candidates
-    new_candidates = [candidate for candidate in entity.candidates if
-                      candidate.ont_type_depth == highest_ont_type_depth[candidate.name]]
-    entity.candidates = new_candidates
     return entity
 
 
