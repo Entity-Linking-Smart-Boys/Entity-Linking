@@ -4,14 +4,24 @@ import rdflib
 from .candidate import Candidate
 
 
-def merge_jsons(main_results, new_results):
-    if main_results != "":
-        # Merge the two dictionaries
-        main_results.update(new_results)
+# def merge_results(new_results, main_results):
+#     # Parse JSON data into Python dictionaries
+#     data1 = json.loads(new_results)
+#     data2 = json.loads(main_results)
+#
+#     # Merge the dictionaries
+#     data1["results"]["bindings"].extend(data2["results"]["bindings"])
+#
+#     # Convert the merged dictionary back to JSON
+#     merged_json = json.dumps(data1, indent=2)
+#     return merged_json
 
-        return main_results
-    else:
-        return new_results  # return only this, because main results are empty
+
+
+def merge_results(new_results, main_results):
+    # Merge the 'bindings' lists from both dictionaries
+    main_results['results']['bindings'].extend(new_results['results']['bindings'])
+    return main_results
 
 
 def query_dbpedia(entity):
@@ -28,7 +38,17 @@ def query_dbpedia(entity):
 
     dbpedia_ont_types = entity.ont_type_dbpedia.split(',')
 
-    results = ""
+    results = {
+        "head": {
+            "link": [],
+            "vars": ["entity", "typeValue", "name"]
+        },
+        "results": {
+            "distinct": False,
+            "ordered": True,
+            "bindings": []
+        }
+    }
 
     for ontology_type in dbpedia_ont_types:
         query = '''
@@ -53,7 +73,8 @@ def query_dbpedia(entity):
 
         sparql.verify = False
         query_result = sparql.query().convert()
-        results = merge_jsons(results, query_result)
+        results = merge_results(query_result, results)
+        # print(len(results['results']['bindings']))
     return results
 
 
