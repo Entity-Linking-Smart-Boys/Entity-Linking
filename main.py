@@ -1,4 +1,4 @@
-from named_entity_recognition.NER_spacy import *
+from named_entity_recognition.NER_using_spacy import *
 from candidate_generation.candidate_generation import *
 
 if __name__ == "__main__":
@@ -11,19 +11,18 @@ if __name__ == "__main__":
     for entity in entities:
         entity = map_entity_type_to_dbpedia_ontology(entity)
         query_result = query_dbpedia(entity)
-        print(query_result)
-
-        print(entity.surface_form)
-        # print(json.dumps(query_result, indent=2))  # print formatted json
+        # print(query_result)
 
         entity = save_found_candidates(query_result, entity)
         # entity = sort_cand_by_ont_depth(entity)
         # entity = extract_deepest_candidates(entity)
 
-        print("#####")
-
     # Print the remaining candidates for each entity
     for entity in entities:
-        print(f"\nEntity \"{entity.surface_form}\" has {len(entity.candidates)} candidates:")
+        print(f"\nEntity \"{entity.surface_form}\"")
+        print(f"ont_type_spacy \"{entity.ont_type_spacy}\"")
+        print(f"ont_type_dbpedia \"{entity.ont_type_dbpedia}\"")
+        print(f"Candidates ({len(entity.candidates)}):")
         for candidate in entity.candidates:
             print(f"\tName: {candidate.label}, URI: {candidate.uri}")
+        print("\n")

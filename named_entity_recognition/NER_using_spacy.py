@@ -1,6 +1,6 @@
 import spacy
 from spacy import displacy
-from Entity import Entity
+from named_entity_recognition.entity import Entity
 
 
 def named_entity_recognition_using_spacy(text):

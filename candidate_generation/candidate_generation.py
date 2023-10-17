@@ -1,9 +1,7 @@
-from rdflib import Graph
 from SPARQLWrapper import SPARQLWrapper, JSON
 import ssl
 import rdflib
-from Entity import Candidate
-import json
+from .candidate import Candidate
 
 
 def merge_jsons(main_results, new_results):
