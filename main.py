@@ -2,6 +2,12 @@ from named_entity_recognition.NER_using_spacy import *
 from candidate_generation.candidate_generation import *
 
 
+def get_text_from_file(filename):
+    with open(filename, encoding='utf8') as f:
+        text_from_file = f.readlines()
+    return ''.join(text_from_file).replace('\n', ' ')
+
+
 def print_candidates_for_each_entity(list_of_entities):
     """
     Print list of candidates for each found entity.
@@ -17,8 +23,7 @@ def print_candidates_for_each_entity(list_of_entities):
 
 
 if __name__ == "__main__":
-    with open('text_to_analyse.txt', encoding='utf8') as f:
-        text_to_analyse = f.readlines()
+    text_to_analyse = get_text_from_file('text_to_analyse.txt')
 
     entities = named_entity_recognition_using_spacy(text_to_analyse)
 
