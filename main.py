@@ -17,11 +17,10 @@ def print_candidates_for_each_entity(list_of_entities):
 
 
 if __name__ == "__main__":
-    #text = "Nikola Tesla (Serbian Cyrillic: Никола Тесла) was a Serbian-American inventor, electrical engineer, mechanical engineer, and futurist best known for his contributions to the design of the modern alternating current (AC) electricity supply system."
-    #text_mj = 'Michael Jeffrey Jordan (born February 17, 1963), also known by his initials MJ, is an American former professional basketball player and businessman. His profile on the official National Basketball Association (NBA) website states that "by acclamation, Michael Jordan is the greatest basketball player of all time." He played fifteen seasons in the NBA, winning six NBA championships with the Chicago Bulls. He was integral in popularizing the sport of basketball and the NBA around the world in the 1980s and 1990s, becoming a global cultural icon.'
-    text_sgfm = "Spain."
+    with open('text_to_analyse.txt', encoding='utf8') as f:
+        text_to_analyse = f.readlines()
 
-    entities = named_entity_recognition_using_spacy(text_sgfm)
+    entities = named_entity_recognition_using_spacy(text_to_analyse)
 
     for entity in entities:
         entity = map_entity_type_to_dbpedia_ontology(entity)
