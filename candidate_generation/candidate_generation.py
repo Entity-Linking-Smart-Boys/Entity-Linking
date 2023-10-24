@@ -33,7 +33,7 @@ def query_dbpedia(entity):
     results = {
         "head": {
             "link": [],
-            "vars": ["entity", "typeValue", "name"]
+            "vars": ["entity", "typeValue", "name", "abstract"]
         },
         "results": {
             "distinct": False,
@@ -46,14 +46,15 @@ def query_dbpedia(entity):
         query = '''
             PREFIX dbo: <http://dbpedia.org/ontology/>
            
-            SELECT ?entity ?typeValue ?name
+            SELECT ?entity ?typeValue ?name ?abstract
             WHERE {
               {
                 ?entity a/rdfs:subClassOf* ''' + ontology_type + ''';
                         rdfs:label ?name ;
-                        a ?type .
+                        a ?type ;
+                        dbo:abstract ?abstract.
                 BIND ("''' + ontology_type + '''" as ?typeValue)
-                FILTER (langMatches(lang(?name), "en") && CONTAINS(?name, "''' + entity.surface_form + '''") && STRSTARTS(STR(?type), "http://dbpedia.org/ontology"))
+                FILTER (langMatches(lang(?name), "en") && CONTAINS(?name, "''' + entity.surface_form + '''") && STRSTARTS(STR(?type), "http://dbpedia.org/ontology") && langMatches(lang(?abstract), "en"))
               }
             }
             group by ?entity  # this lowers the number of results
@@ -83,7 +84,13 @@ def save_found_candidates(query_results, entity):
         candidate_uri = result["entity"]["value"]
         candidate_label = result["name"]["value"]
         candidate_type = result["typeValue"]["value"]
-        candidate = Candidate(candidate_uri, candidate_label, candidate_type)
+
+        # if abstract exists:
+        if result["abstract"]["value"]:
+            abstract = result["abstract"]["value"]
+            candidate = Candidate(candidate_uri, candidate_label, candidate_type, abstract)
+        else:
+            candidate = Candidate(candidate_uri, candidate_label, candidate_type)
         entity.candidates.append(candidate)
     return entity
 
