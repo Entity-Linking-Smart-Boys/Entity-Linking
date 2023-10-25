@@ -10,4 +10,5 @@ class Candidate:
         self.ont_type = ont_type  # from DBpedia - ontology type
         self.abstract = abstract  # from DBpedia - entity abstract (optional)
 
-    cand_dis_by_context_score = 0  # original score from disambiguation by context
+    cand_dis_by_context_score = 0  # score from disambiguation by context
+    cand_dis_by_levenshtein_score = 0  # score from disambiguation by levenshtein distance
