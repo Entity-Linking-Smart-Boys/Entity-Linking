@@ -50,4 +50,4 @@ if __name__ == "__main__":
 
     print_candidates_for_each_entity(entities)
 
-    disambiguate_candidates(entities, text_to_analyse)
+    entities = disambiguate_candidates(entities, text_to_analyse)

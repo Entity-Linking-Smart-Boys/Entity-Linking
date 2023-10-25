@@ -23,6 +23,8 @@ def named_entity_recognition_using_spacy(text):
         new_entity = Entity()
         new_entity.surface_form = entity[0]
         new_entity.ont_type_spacy = entity[1]
+        new_entity.start_char = entity[2]
+        new_entity.end_char = entity[3]
         new_entity.sentence_number = list(doc.sents).index(entity[4])
         new_entity.sentence_text = str(entity[4])
 
@@ -40,7 +42,7 @@ def map_entity_type_to_dbpedia_ontology(entity):
     :return:
     """
     spacy_to_dbpedia_ontology_mapping = {
-        "PERSON": "dbo:Species, dbo:Agent",  # People, including fictional.
+        "PERSON": "dbo:Species",  # People, including fictional.
         "NORP": "dbo:Agent, dbo:Species",  # Nationalities or religious or political groups.
         "FAC": "dbo:Building, dbo:ArchitecturalStructure, dbo:Infrastructure",  # Buildings, airports, highways, bridges, etc.
         "ORG": "dbo:Agent",  # Companies, agencies, institutions, etc.

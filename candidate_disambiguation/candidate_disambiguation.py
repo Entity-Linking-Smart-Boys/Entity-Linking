@@ -1,5 +1,8 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
+from SPARQLWrapper import SPARQLWrapper, JSON
+import ssl
+from urllib.parse import quote
 
 
 def calculate_similarity(entity_label, candidate_label):
@@ -113,6 +116,157 @@ def disambiguate_by_context(entities):
     return entities
 
 
+def sort_candidates_by_partial_score(entities):
+    for entity in entities:
+        if entity.candidates:
+            for i, candidate in enumerate(entity.candidates):
+                # Sum the context score and Levenshtein score into the final score
+                final_score = candidate.cand_dis_by_context_score + candidate.cand_dis_by_levenshtein_score
+                candidate.cand_dis_partial_score = final_score
+                entity.candidates[i] = candidate
+
+            # Sort candidates by the final score in descending order
+            entity.candidates.sort(key=lambda candidate: candidate.cand_dis_partial_score, reverse=True)
+
+    return entities
+
+
+def sort_candidates_by_similarity_score(entities):
+    for entity in entities:
+        if entity.candidates:
+            entity.candidates.sort(key=lambda candidate: candidate.cand_dis_by_similarity_in_dbpedia_graph, reverse=True)
+
+    return entities
+
+
+def normalize_similarity_scores(entities):
+    for entity in entities:
+        if entity.candidates:
+            # Get the minimum and maximum similarity scores in the entity
+            min_score = min(candidate.cand_dis_by_similarity_in_dbpedia_graph for candidate in entity.candidates)
+            max_score = max(candidate.cand_dis_by_similarity_in_dbpedia_graph for candidate in entity.candidates)
+
+            # Normalize the scores for each candidate
+            for candidate in entity.candidates:
+                if max_score == min_score:
+                    candidate.normalized_similarity_score = 1.0  # All scores are the same
+                else:
+                    candidate.normalized_similarity_score = (candidate.cand_dis_by_similarity_in_dbpedia_graph - min_score) / (
+                                                             max_score - min_score)
+
+    return entities
+
+
+def find_closest_entities(entities, n):
+    # n --> Index of the n-th entity
+    if n < 0 or n >= len(entities):
+        # Entity index out of range
+        return None, None
+
+    n_entity = entities[n]
+
+    closest_left_entity = None
+    closest_right_entity = None
+
+    # Initialize the minimum distance to a large value
+    min_left_distance = float("inf")
+    min_right_distance = float("inf")
+
+    for i, entity in enumerate(entities):
+        if i == n:
+            continue  # Skip the n-th entity itself
+
+        # Calculate the distance between the n-th entity and the current entity
+        if entity.end_char < n_entity.start_char:
+            left_distance = n_entity.start_char - entity.end_char
+            if left_distance < min_left_distance:
+                min_left_distance = left_distance
+                closest_left_entity = entity
+        elif entity.start_char > n_entity.end_char:
+            right_distance = entity.start_char - n_entity.end_char
+            if right_distance < min_right_distance:
+                min_right_distance = right_distance
+                closest_right_entity = entity
+
+    return closest_left_entity, closest_right_entity
+
+
+def calculate_similarity_in_dbpedia_graph(center_entity_candidate, left_entity_candidates, right_entity_candidates):
+    # Initialize the total similarity score
+    total_similarity_score = 0
+
+    # Set up the SPARQL endpoint
+    ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
+    sparql = SPARQLWrapper('https://dbpedia.org/sparql')  # initialize SPARQL Wrapper
+
+
+    total_similarity_score = query_side_entity_candidates(center_entity_candidate, left_entity_candidates, sparql,
+                                                          total_similarity_score)
+    total_similarity_score = query_side_entity_candidates(center_entity_candidate, right_entity_candidates, sparql,
+                                                          total_similarity_score)
+
+    return total_similarity_score
+
+
+def query_side_entity_candidates(center_entity_candidate, side_entity_candidates, sparql, total_similarity_score):
+    for i in range(0, len(side_entity_candidates)):
+        # Encode the entity labels
+        center_entity_label = quote(str(center_entity_candidate.label).replace(' ', '_'))
+        side_entity_label = quote(str(side_entity_candidates[i].label).replace(' ', '_'))
+
+        query = """
+            PREFIX dbo: <http://dbpedia.org/ontology/> 
+            PREFIX dbr: <http://dbpedia.org/resource/> 
+            
+            SELECT ?connection (count(?connection) as ?count) 
+            
+            WHERE { 
+            
+              dbr:""" + center_entity_label + """ ?connection ?x . 
+            
+              ?x ?y dbr:""" + side_entity_label + """ . 
+            
+              FILTER (?connection = dbo:wikiPageWikiLink) 
+            } 
+        """
+        print(query)
+
+        sparql.setQuery(query)
+        sparql.setReturnFormat(JSON)
+
+        try:
+            # Execute the query
+            results = sparql.query().convert()
+            # Parse the count from the results
+            count = int(results["results"]["bindings"][0]["count"]["value"])
+            total_similarity_score += count
+        except Exception as e:
+            print(f"Error executing SPARQL query: {str(e)}")
+    return total_similarity_score
+
+
+def disambiguate_by_similarity_in_dbpedia_graph(entities):
+    for i, entity in enumerate(entities):
+        closest_left_entity, closest_right_entity = find_closest_entities(entities, i)
+
+        # Get the top candidates for the current entity, left entity, and right entity
+        top_candidates_count = 3
+        current_entity_candidates = entity.candidates[:top_candidates_count]
+        left_entity_candidates = closest_left_entity.candidates[:top_candidates_count] if closest_left_entity else []
+        right_entity_candidates = closest_right_entity.candidates[:top_candidates_count] if closest_right_entity else []
+
+        # Calculate the similarity in the DBpedia graph for the candidates
+        for candidate in current_entity_candidates:
+            # Calculate similarity with candidates from the left entity and the right entity
+            total_similarity_score = calculate_similarity_in_dbpedia_graph(candidate, left_entity_candidates,
+                                                                           right_entity_candidates)
+
+            # Save the final score into the candidate
+            candidate.cand_dis_by_similarity_in_dbpedia_graph = total_similarity_score
+
+    return entities
+
+
 def disambiguate_candidates(entities, text):
     """
     Disambiguate candidates for each entity.
@@ -124,4 +278,11 @@ def disambiguate_candidates(entities, text):
     entities = disambiguate_by_context(entities)
     entities = disambiguate_by_levenshtein_distance(entities)
 
+    entities = sort_candidates_by_partial_score(entities)
+
+    entities = disambiguate_by_similarity_in_dbpedia_graph(entities)
+    entities = normalize_similarity_scores(entities)
+    entities = sort_candidates_by_similarity_score(entities)
+
     return entities
+
