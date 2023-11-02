@@ -81,6 +81,12 @@ def disambiguate_by_context(entities):
     :param entities: List of entities found in the text, each with associated candidates.
     :return: List of entities with candidates ranked from the most probable to least probable, based on context.
     """
+    # TODO: add normalization:
+    #   Normalization is an optional step in the TF-IDF calculation,
+    #   and it's often used to ensure that the vectors
+    #   have a unit length (a magnitude of 1).
+    #   Normalization can be achieved using various techniques,
+    #   with the most common one being L2 normalization (also known as Euclidean normalization).
 
     # Create a dictionary to store the first sentence of each abstract by URI
     abstracts = {}
@@ -217,19 +223,19 @@ def query_side_entity_candidates(center_entity_candidate, side_entity_candidates
         query = """
             PREFIX dbo: <http://dbpedia.org/ontology/> 
             PREFIX dbr: <http://dbpedia.org/resource/> 
-            
+
             SELECT ?connection (count(?connection) as ?count) 
-            
+
             WHERE { 
-            
+
               dbr:""" + center_entity_label + """ ?connection ?x . 
-            
+
               ?x ?y dbr:""" + side_entity_label + """ . 
-            
+
               FILTER (?connection = dbo:wikiPageWikiLink) 
             } 
         """
-        print(query)
+        # print(query)
 
         sparql.setQuery(query)
         sparql.setReturnFormat(JSON)
@@ -237,9 +243,14 @@ def query_side_entity_candidates(center_entity_candidate, side_entity_candidates
         try:
             # Execute the query
             results = sparql.query().convert()
-            # Parse the count from the results
-            count = int(results["results"]["bindings"][0]["count"]["value"])
-            total_similarity_score += count
+            # Check if there are results
+            if "results" in results and "bindings" in results["results"]:
+                count = int(results["results"]["bindings"][0]["count"]["value"])
+                total_similarity_score += count
+                print("count:" + str(count))
+        except IndexError:
+            # Handle the case where no results are found
+            print(f"No results found for the SPARQL query.")
         except Exception as e:
             print(f"Error executing SPARQL query: {str(e)}")
     return total_similarity_score
@@ -250,7 +261,7 @@ def disambiguate_by_similarity_in_dbpedia_graph(entities):
         closest_left_entity, closest_right_entity = find_closest_entities(entities, i)
 
         # Get the top candidates for the current entity, left entity, and right entity
-        top_candidates_count = 3
+        top_candidates_count = 5
         current_entity_candidates = entity.candidates[:top_candidates_count]
         left_entity_candidates = closest_left_entity.candidates[:top_candidates_count] if closest_left_entity else []
         right_entity_candidates = closest_right_entity.candidates[:top_candidates_count] if closest_right_entity else []
