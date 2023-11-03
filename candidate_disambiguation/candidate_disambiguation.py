@@ -5,7 +5,7 @@ import ssl
 from urllib.parse import quote
 
 
-def calculate_similarity(entity_label, candidate_label):
+def calculate_levenshtein_distance_between_two_strings(entity_label, candidate_label):
     """
     Calculate the similarity score between an entity label and a candidate label using Levenshtein distance.
 
@@ -54,29 +54,41 @@ def calculate_similarity(entity_label, candidate_label):
 def disambiguate_by_levenshtein_distance(entities):
     """
     Disambiguate candidate entities for each entity using Levenshtein distance-based similarity scores.
-
-    :param entities: A list of entity objects with associated candidates.
-    :return: Updated entities with candidates containing Levenshtein distance-based similarity scores.
-
+    This function compares two strings:
+    - the entity label (surface form)
+    - the candidate label of this entity (DBpedia label)
     This function calculates the Levenshtein distance-based similarity scores between
     the entity labels and candidate labels for each entity and its candidates.
     The calculated similarity scores are stored in the candidates
     and returned as the updated entity list.
+
+    :param entities: A list of entity objects with associated candidates.
+    :return: Updated entities with candidates containing Levenshtein distance-based similarity scores.
     """
 
     for entity in entities:
         for candidate in entity.candidates:
             entity_label = entity.surface_form
             candidate_label = str(candidate.label).replace("_", " ")
-            similarity = calculate_similarity(entity_label, candidate_label)
-            candidate.cand_dis_by_levenshtein_score = similarity
+            levenshtein_distance_score = calculate_levenshtein_distance_between_two_strings(entity_label, candidate_label)
+            candidate.cand_dis_by_levenshtein_score = levenshtein_distance_score
+            candidate.cand_dis_current_score += levenshtein_distance_score
 
     return entities
 
 
-def disambiguate_by_context(entities):
+
+
+
+
+
+def disambiguate_by_context_sentence_and_abstract(entities):
     """
     Disambiguate candidates for each entity based on context similarity.
+    Two strings are compared:
+    - the sentence in which the entity was recognized
+    - the abstract of the candidate of the recognized entity
+    The similarity between the two strings is calculated using TF-IDF and cosine similarity.
 
     :param entities: List of entities found in the text, each with associated candidates.
     :return: List of entities with candidates ranked from the most probable to least probable, based on context.
@@ -118,52 +130,46 @@ def disambiguate_by_context(entities):
 
                     # Store the score in the candidate instance
                     candidate.cand_dis_by_context_score = similarity_score
+                    candidate.cand_dis_current_score += similarity_score
 
     return entities
 
 
-def sort_candidates_by_partial_score(entities):
+
+
+
+
+
+
+def sort_candidates_by_current_score(entities):
     for entity in entities:
         if entity.candidates:
-            for i, candidate in enumerate(entity.candidates):
-                # Sum the context score and Levenshtein score into the final score
-                final_score = candidate.cand_dis_by_context_score + candidate.cand_dis_by_levenshtein_score
-                candidate.cand_dis_partial_score = final_score
-                entity.candidates[i] = candidate
-
-            # Sort candidates by the final score in descending order
-            entity.candidates.sort(key=lambda candidate: candidate.cand_dis_partial_score, reverse=True)
+            entity.candidates.sort(key=lambda candidate: candidate.cand_dis_current_score, reverse=True)
 
     return entities
 
 
-def sort_candidates_by_similarity_score(entities):
-    for entity in entities:
-        if entity.candidates:
-            entity.candidates.sort(key=lambda candidate: candidate.cand_dis_by_similarity_in_dbpedia_graph, reverse=True)
-
-    return entities
-
-
-def normalize_similarity_scores(entities):
+def normalize_connectivity_in_dbpedia_scores(entities):
     for entity in entities:
         if entity.candidates:
             # Get the minimum and maximum similarity scores in the entity
-            min_score = min(candidate.cand_dis_by_similarity_in_dbpedia_graph for candidate in entity.candidates)
-            max_score = max(candidate.cand_dis_by_similarity_in_dbpedia_graph for candidate in entity.candidates)
-
+            min_score = min(candidate.cand_dis_by_connectivity_in_dbpedia_graph_score for candidate in entity.candidates)
+            max_score = max(candidate.cand_dis_by_connectivity_in_dbpedia_graph_score for candidate in entity.candidates)
+            print(min_score, max_score)
             # Normalize the scores for each candidate
             for candidate in entity.candidates:
                 if max_score == min_score:
-                    candidate.normalized_similarity_score = 1.0  # All scores are the same
+                    normalized_similarity_score = 1.0  # All scores are the same
                 else:
-                    candidate.normalized_similarity_score = (candidate.cand_dis_by_similarity_in_dbpedia_graph - min_score) / (
+                    normalized_similarity_score = (candidate.cand_dis_by_connectivity_in_dbpedia_graph_score - min_score) / (
                                                              max_score - min_score)
+                candidate.cand_dis_normalized_connectivity_in_dbpedia_graph_score = normalized_similarity_score
+                candidate.cand_dis_current_score += normalized_similarity_score
 
     return entities
 
 
-def find_closest_entities(entities, n):
+def find_two_closests_entities(entities, n):
     # n --> Index of the n-th entity
     if n < 0 or n >= len(entities):
         # Entity index out of range
@@ -197,14 +203,13 @@ def find_closest_entities(entities, n):
     return closest_left_entity, closest_right_entity
 
 
-def calculate_similarity_in_dbpedia_graph(center_entity_candidate, left_entity_candidates, right_entity_candidates):
+def calculate_connectivity_for_candidate(center_entity_candidate, left_entity_candidates, right_entity_candidates):
     # Initialize the total similarity score
     total_similarity_score = 0
 
     # Set up the SPARQL endpoint
     ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
     sparql = SPARQLWrapper('https://dbpedia.org/sparql')  # initialize SPARQL Wrapper
-
 
     total_similarity_score = query_side_entity_candidates(center_entity_candidate, left_entity_candidates, sparql,
                                                           total_similarity_score)
@@ -256,44 +261,45 @@ def query_side_entity_candidates(center_entity_candidate, side_entity_candidates
     return total_similarity_score
 
 
-def disambiguate_by_similarity_in_dbpedia_graph(entities):
+def disambiguate_by_dbpedia_graph_connectivity(entities):
     for i, entity in enumerate(entities):
-        closest_left_entity, closest_right_entity = find_closest_entities(entities, i)
+        closest_left_entity, closest_right_entity = find_two_closests_entities(entities, i)
 
-        # Get the top candidates for the current entity, left entity, and right entity
+        # Get the top candidates for the centre entity, left entity, and right entity
         top_candidates_count = 5
         current_entity_candidates = entity.candidates[:top_candidates_count]
         left_entity_candidates = closest_left_entity.candidates[:top_candidates_count] if closest_left_entity else []
         right_entity_candidates = closest_right_entity.candidates[:top_candidates_count] if closest_right_entity else []
 
-        # Calculate the similarity in the DBpedia graph for the candidates
+        # Calculate the connectivity in the DBpedia graph for the selected candidates
         for candidate in current_entity_candidates:
             # Calculate similarity with candidates from the left entity and the right entity
-            total_similarity_score = calculate_similarity_in_dbpedia_graph(candidate, left_entity_candidates,
-                                                                           right_entity_candidates)
+            candidate_total_connectivity_score = calculate_connectivity_for_candidate(candidate,
+                                                                                      left_entity_candidates,
+                                                                                      right_entity_candidates)
 
-            # Save the final score into the candidate
-            candidate.cand_dis_by_similarity_in_dbpedia_graph = total_similarity_score
+            candidate.cand_dis_by_connectivity_in_dbpedia_graph_score = candidate_total_connectivity_score
+
+    entities = normalize_connectivity_in_dbpedia_scores(entities)
 
     return entities
 
 
-def disambiguate_candidates(entities, text):
+def disambiguate_candidates(entities):
     """
     Disambiguate candidates for each entity.
 
     :param entities: list of entities found in the text and categorized into DBpedia ontology
-    :param text: text to analyse (original)
-    :return: entities with candidates ranked from the most probable to least probable
+    :return: entities with candidates ranked from the most probable to the least probable
     """
-    entities = disambiguate_by_context(entities)
+    entities = disambiguate_by_context_sentence_and_abstract(entities)
+    entities = sort_candidates_by_current_score(entities)
+
     entities = disambiguate_by_levenshtein_distance(entities)
+    entities = sort_candidates_by_current_score(entities)
 
-    entities = sort_candidates_by_partial_score(entities)
-
-    entities = disambiguate_by_similarity_in_dbpedia_graph(entities)
-    entities = normalize_similarity_scores(entities)
-    entities = sort_candidates_by_similarity_score(entities)
+    entities = disambiguate_by_dbpedia_graph_connectivity(entities)
+    entities = sort_candidates_by_current_score(entities)
 
     return entities
 

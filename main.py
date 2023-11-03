@@ -48,8 +48,8 @@ def print_disambiguated_entities(entities):
             # Print the candidate's partial score and similarity score
             print("Candidate label:", candidate.label)
             print("Candidate uri:", candidate.uri)
-            print("Candidate Partial Score:", candidate.cand_dis_partial_score)
-            print("Candidate Similarity Score:", candidate.cand_dis_by_similarity_in_dbpedia_graph)
+            print("Candidate Partial Score:", candidate.cand_dis_current_score)
+            print("Candidate Similarity Score:", candidate.cand_dis_by_connectivity_in_dbpedia_graph_score)
             print('\n')
         print('\n\n')
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     # Disambiguate candidates
     disambiguate_start_time = time.time()
-    entities = disambiguate_candidates(entities, text_to_analyze)
+    entities = disambiguate_candidates(entities)
     disambiguate_end_time = time.time()
     print(f"Disambiguating candidates took {disambiguate_end_time - disambiguate_start_time} seconds")
 
