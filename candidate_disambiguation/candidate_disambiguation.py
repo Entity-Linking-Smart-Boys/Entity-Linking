@@ -153,23 +153,23 @@ def normalize_connectivity_in_dbpedia_scores(entities):
     for entity in entities:
         if entity.candidates:
             # Get the minimum and maximum similarity scores in the entity
-            min_score = min(candidate.cand_dis_by_connectivity_in_dbpedia_graph_score for candidate in entity.candidates)
-            max_score = max(candidate.cand_dis_by_connectivity_in_dbpedia_graph_score for candidate in entity.candidates)
+            min_score = min(candidate.cand_dis_by_connectivity_score for candidate in entity.candidates)
+            max_score = max(candidate.cand_dis_by_connectivity_score for candidate in entity.candidates)
             print(min_score, max_score)
             # Normalize the scores for each candidate
             for candidate in entity.candidates:
                 if max_score == min_score:
-                    normalized_similarity_score = 1.0  # All scores are the same
+                    normalized_similarity_score = 0  # All scores are the same
                 else:
-                    normalized_similarity_score = (candidate.cand_dis_by_connectivity_in_dbpedia_graph_score - min_score) / (
+                    normalized_similarity_score = (candidate.cand_dis_by_connectivity_score - min_score) / (
                                                              max_score - min_score)
-                candidate.cand_dis_normalized_connectivity_in_dbpedia_graph_score = normalized_similarity_score
+                candidate.cand_dis_by_connectivity_score = normalized_similarity_score
                 candidate.cand_dis_current_score += normalized_similarity_score
 
     return entities
 
 
-def find_two_closests_entities(entities, n):
+def find_two_closest_entities(entities, n):
     # n --> Index of the n-th entity
     if n < 0 or n >= len(entities):
         # Entity index out of range
@@ -205,18 +205,24 @@ def find_two_closests_entities(entities, n):
 
 def calculate_connectivity_for_candidate(center_entity_candidate, left_entity_candidates, right_entity_candidates):
     # Initialize the total similarity score
-    total_similarity_score = 0
+    total_connectivity_score = 0
 
     # Set up the SPARQL endpoint
     ssl._create_default_https_context = ssl._create_unverified_context  # set the SSL Certificate
     sparql = SPARQLWrapper('https://dbpedia.org/sparql')  # initialize SPARQL Wrapper
 
-    total_similarity_score = query_side_entity_candidates(center_entity_candidate, left_entity_candidates, sparql,
-                                                          total_similarity_score)
-    total_similarity_score = query_side_entity_candidates(center_entity_candidate, right_entity_candidates, sparql,
-                                                          total_similarity_score)
+    connectivity_score_with_right_candidates = query_side_entity_candidates(center_entity_candidate,
+                                                                            left_entity_candidates,
+                                                                            sparql,
+                                                                            total_connectivity_score)
+    connectivity_score_with_left_candidates = query_side_entity_candidates(center_entity_candidate,
+                                                                           right_entity_candidates,
+                                                                           sparql,
+                                                                           total_connectivity_score)
 
-    return total_similarity_score
+    total_connectivity_score = connectivity_score_with_right_candidates + connectivity_score_with_left_candidates
+
+    return total_connectivity_score
 
 
 def query_side_entity_candidates(center_entity_candidate, side_entity_candidates, sparql, total_similarity_score):
@@ -263,7 +269,7 @@ def query_side_entity_candidates(center_entity_candidate, side_entity_candidates
 
 def disambiguate_by_dbpedia_graph_connectivity(entities):
     for i, entity in enumerate(entities):
-        closest_left_entity, closest_right_entity = find_two_closests_entities(entities, i)
+        closest_left_entity, closest_right_entity = find_two_closest_entities(entities, i)
 
         # Get the top candidates for the centre entity, left entity, and right entity
         top_candidates_count = 5
@@ -278,7 +284,7 @@ def disambiguate_by_dbpedia_graph_connectivity(entities):
                                                                                       left_entity_candidates,
                                                                                       right_entity_candidates)
 
-            candidate.cand_dis_by_connectivity_in_dbpedia_graph_score = candidate_total_connectivity_score
+            candidate.cand_dis_by_connectivity_score = candidate_total_connectivity_score
 
     entities = normalize_connectivity_in_dbpedia_scores(entities)
 

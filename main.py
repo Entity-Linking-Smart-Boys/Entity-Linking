@@ -48,8 +48,10 @@ def print_disambiguated_entities(entities):
             # Print the candidate's partial score and similarity score
             print("Candidate label:", candidate.label)
             print("Candidate uri:", candidate.uri)
-            print("Candidate Partial Score:", candidate.cand_dis_current_score)
-            print("Candidate Similarity Score:", candidate.cand_dis_by_connectivity_in_dbpedia_graph_score)
+            print("Candidate Current Score:", candidate.cand_dis_current_score)
+            print("Candidate Context Score:", candidate.cand_dis_by_context_score)
+            print("Candidate Levenshtein Score:", candidate.cand_dis_by_levenshtein_score)
+            print("Candidate Connectivity Score:", candidate.cand_dis_by_connectivity_score)
             print('\n')
         print('\n\n')
 

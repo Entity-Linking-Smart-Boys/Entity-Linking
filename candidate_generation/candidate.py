@@ -12,6 +12,5 @@ class Candidate:
 
     cand_dis_by_context_score = 0  # score from disambiguation by context
     cand_dis_by_levenshtein_score = 0  # score from disambiguation by levenshtein distance
-    cand_dis_by_connectivity_in_dbpedia_graph_score = 0  # score from disambiguation by similarity_in_dbpedia_graph
-    cand_dis_normalized_connectivity_in_dbpedia_graph_score = 0  # normalized score from disambiguation by similarity_in_dbpedia_graph
+    cand_dis_by_connectivity_score = 0  # score from disambiguation by similarity_in_dbpedia_graph
     cand_dis_current_score = 0
